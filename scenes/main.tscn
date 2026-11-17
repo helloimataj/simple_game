@@ -1,10 +1,11 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/globe_camera.gd" id="2_camera"]
 [ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="3_stars"]
 [ext_resource type="Shader" path="res://shaders/atmosphere.gdshader" id="4_atmo"]
 [ext_resource type="Script" path="res://scripts/units/unit_layer.gd" id="5_units"]
+[ext_resource type="Script" path="res://scripts/buildings/building_layer.gd" id="6_buildings"]
 
 [sub_resource type="ShaderMaterial" id="SkyMat"]
 shader = ExtResource("3_stars")
@@ -46,6 +47,9 @@ transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.43
 light_energy = 1.1
 
 [node name="Planet" type="MeshInstance3D" parent="."]
+
+[node name="Buildings" type="Node3D" parent="."]
+script = ExtResource("6_buildings")
 
 [node name="Units" type="Node3D" parent="."]
 script = ExtResource("5_units")
@@ -250,9 +254,9 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -300.0
+offset_left = -420.0
 offset_top = -116.0
-offset_right = 300.0
+offset_right = 420.0
 offset_bottom = -72.0
 grow_horizontal = 2
 grow_vertical = 0
@@ -278,9 +282,15 @@ text = "Place:"
 layout_mode = 2
 theme_override_constants/separation = 4
 
+[node name="BuildOption" type="OptionButton" parent="UI/Hud/UnitBar/Margin/Row"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+tooltip_text = "Choose a building, then click tiles to build it"
+fit_to_longest_item = false
+
 [node name="RemoveButton" type="Button" parent="UI/Hud/UnitBar/Margin/Row"]
 layout_mode = 2
-tooltip_text = "Click a tile to remove the newest unit on it"
+tooltip_text = "Click a tile to remove the newest unit on it, or the newest building if it has no units"
 toggle_mode = true
 text = "Remove"
 
@@ -294,6 +304,42 @@ text = "Side:"
 
 [node name="SideOption" type="OptionButton" parent="UI/Hud/UnitBar/Margin/Row"]
 layout_mode = 2
+
+[node name="SandboxCheck" type="CheckBox" parent="UI/Hud/UnitBar/Margin/Row"]
+layout_mode = 2
+tooltip_text = "Ignore costs and training requirements (terrain rules still apply)"
+text = "Sandbox"
+
+[node name="ResourceBar" type="PanelContainer" parent="UI/Hud"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -420.0
+offset_top = -154.0
+offset_right = 420.0
+offset_bottom = -122.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="Margin" type="MarginContainer" parent="UI/Hud/ResourceBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 4
+
+[node name="Text" type="RichTextLabel" parent="UI/Hud/ResourceBar/Margin"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/normal_font_size = 14
+theme_override_font_sizes/bold_font_size = 14
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+autowrap_mode = 0
 
 [node name="NextTurnButton" type="Button" parent="UI/Hud"]
 layout_mode = 1

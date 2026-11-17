@@ -3,6 +3,9 @@ extends RefCounted
 ## The four basic unit types. Specialised variants will be derived from these.
 ##
 ## All numbers are first-pass values to tune once movement and combat exist.
+## "cost" is paid once when the unit is trained and "upkeep" every turn; both
+## are {ResourceTypes.Type: amount}. Which building trains a unit is set on the
+## building (BuildingTypes "trains").
 ## Attack values are keyed by the target's unit type.
 
 enum Type { INFANTRY, ARMOR, AIRCRAFT, NAVAL }
@@ -21,7 +24,8 @@ const DATA := {
 		"domain": Domain.LAND,
 		## Which Biomes move cost applies ("move_cost_infantry" / "move_cost_vehicle").
 		"move_cost_key": "move_cost_infantry",
-		"cost": 100,
+		"cost": {ResourceTypes.Type.MONEY: 100, ResourceTypes.Type.FOOD: 20, ResourceTypes.Type.PRODUCTION: 10},
+		"upkeep": {ResourceTypes.Type.MONEY: 1, ResourceTypes.Type.FOOD: 1},
 		"movement": 2,
 		"hit_points": 10,
 		"vision": 2,
@@ -41,7 +45,8 @@ const DATA := {
 		"role": "The main attack unit. Strong and fast on open ground, expensive, and vulnerable to aircraft and to infantry in close terrain.",
 		"domain": Domain.LAND,
 		"move_cost_key": "move_cost_vehicle",
-		"cost": 300,
+		"cost": {ResourceTypes.Type.MONEY: 300, ResourceTypes.Type.MATERIALS: 40, ResourceTypes.Type.FUEL: 10, ResourceTypes.Type.PRODUCTION: 40},
+		"upkeep": {ResourceTypes.Type.MONEY: 2, ResourceTypes.Type.FUEL: 2},
 		"movement": 5,
 		"hit_points": 12,
 		"vision": 2,
@@ -60,7 +65,8 @@ const DATA := {
 		"role": "Fast, can reach anywhere, and hits ground and naval units hard. Can't hold territory, and needs airbases.",
 		"domain": Domain.AIR,
 		"move_cost_key": "",
-		"cost": 400,
+		"cost": {ResourceTypes.Type.MONEY: 400, ResourceTypes.Type.MATERIALS: 30, ResourceTypes.Type.RARE_EARTHS: 10, ResourceTypes.Type.FUEL: 20, ResourceTypes.Type.PRODUCTION: 50},
+		"upkeep": {ResourceTypes.Type.MONEY: 3, ResourceTypes.Type.FUEL: 3},
 		"movement": 12,
 		"hit_points": 6,
 		"vision": 4,
@@ -79,7 +85,8 @@ const DATA := {
 		"role": "Controls the seas, carries or escorts troops overseas, and can bombard coastlines. Useless inland.",
 		"domain": Domain.SEA,
 		"move_cost_key": "",
-		"cost": 500,
+		"cost": {ResourceTypes.Type.MONEY: 500, ResourceTypes.Type.MATERIALS: 80, ResourceTypes.Type.FUEL: 20, ResourceTypes.Type.PRODUCTION: 80},
+		"upkeep": {ResourceTypes.Type.MONEY: 3, ResourceTypes.Type.FUEL: 3},
 		"movement": 6,
 		"hit_points": 16,
 		"vision": 3,
@@ -140,8 +147,10 @@ static func summary(type: int) -> String:
 		vs.append("%s %d" % [display_name(target), attack[target]])
 	var lines: Array[String] = [
 		d["role"], "",
-		"Cost %d  |  Movement %d  |  HP %d  |  Defense %d  |  Vision %d" % [
-			d["cost"], d["movement"], d["hit_points"], d["defense"], d["vision"]],
+		"Cost: " + ResourceTypes.format_amounts(d["cost"]),
+		"Upkeep per turn: " + ResourceTypes.format_amounts(d["upkeep"], "None"),
+		"Movement %d  |  HP %d  |  Defense %d  |  Vision %d" % [
+			d["movement"], d["hit_points"], d["defense"], d["vision"]],
 		"Attack vs: " + ", ".join(vs),
 	]
 	if d["bombard_range"] > 0:

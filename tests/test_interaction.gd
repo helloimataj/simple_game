@@ -88,6 +88,14 @@ func _run() -> void:
 	var invalid_type := UnitTypes.Type.INFANTRY if water else UnitTypes.Type.NAVAL
 	var buttons: Array = main.unit_type_buttons.get_children()
 	buttons[valid_type].button_pressed = true
+	_mouse_button(center, true)
+	_mouse_button(center, false)
+	await process_frame
+	_expect(main.units.units_at(tile).is_empty(), "units cannot be trained without a production building")
+	_expect(main.tile_info.text.contains("must be trained"), "info panel says which building is needed")
+	main.sandbox_check.button_pressed = true
+	_expect(main.game.sandbox, "Sandbox checkbox turns sandbox mode on")
+	buttons[valid_type].button_pressed = true
 	for i in 3:
 		_mouse_button(center, true)
 		_mouse_button(center, false)
@@ -107,6 +115,38 @@ func _run() -> void:
 	_expect(main.units.units_at(tile).size() == 2, "Remove tool removes one unit")
 	main.remove_unit_button.button_pressed = false
 	_expect(main._tool == main.TOOL_NONE, "untoggling returns to plain selection")
+
+	# Build menu: choosing a building makes clicks build it.
+	var farm_index := -1
+	for i in main.build_option.item_count:
+		if main.build_option.get_item_id(i) == BuildingTypes.Type.FARM \
+				and not main.build_option.is_item_separator(i):
+			farm_index = i
+	buttons[0].button_pressed = true
+	main.build_option.select(farm_index)
+	main.build_option.item_selected.emit(farm_index)
+	_expect(main._tool == main.TOOL_BUILD + BuildingTypes.Type.FARM, "build menu selects the building tool")
+	_expect(not buttons[0].button_pressed, "choosing a building releases the unit buttons")
+	_mouse_button(center, true)
+	_mouse_button(center, false)
+	await process_frame
+	var farm_ok: bool = main.buildings.can_place(BuildingTypes.Type.FARM, 0, tile) \
+		or main.buildings.has_type(tile, BuildingTypes.Type.FARM)
+	_expect(main.buildings.has_type(tile, BuildingTypes.Type.FARM) == farm_ok
+		and (farm_ok or main.tile_info.text.contains("Can't build here")),
+		"clicking builds the farm where allowed, or explains why not")
+	if farm_ok:
+		_expect(main.tile_info.text.contains("Buildings: 1"), "info panel lists the building")
+
+	# Resource bar and per-turn income.
+	_expect(main.resource_text.text.contains("Money") and main.resource_text.text.contains("Power"),
+		"resource bar shows the stockpile and power")
+	var money: int = main.game.stock[0][ResourceTypes.Type.MONEY]
+	var expected_net: int = main.game.income_for(0)[ResourceTypes.Type.MONEY]
+	main.next_turn_button.pressed.emit()
+	await process_frame
+	_expect(main.game.stock[0][ResourceTypes.Type.MONEY] == maxi(money + expected_net, 0),
+		"Next Turn applies income and upkeep (%d %+d)" % [money, expected_net])
 
 	print("ALL TESTS PASSED" if failures == 0 else "%d TEST(S) FAILED" % failures)
 	quit(1 if failures > 0 else 0)

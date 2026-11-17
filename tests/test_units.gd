@@ -73,7 +73,8 @@ func _init() -> void:
 		var d := UnitTypes.info(type)
 		for target in UnitTypes.count():
 			_expect(d["attack"].has(target), "%s has attack vs %s" % [d["name"], UnitTypes.display_name(target)])
-	_expect(UnitTypes.info(I)["cost"] < UnitTypes.info(A)["cost"], "infantry is cheaper than armor")
+	_expect(UnitTypes.info(I)["cost"][ResourceTypes.Type.MONEY] < UnitTypes.info(A)["cost"][ResourceTypes.Type.MONEY],
+		"infantry is cheaper than armor")
 	_expect(UnitTypes.info(I)["movement"] < UnitTypes.info(A)["movement"], "infantry is slower than armor")
 	_expect(UnitTypes.info(P)["movement"] > UnitTypes.info(A)["movement"], "aircraft are fastest")
 	_expect(not UnitTypes.info(P)["can_hold_territory"] and UnitTypes.info(P)["needs_airbase"],

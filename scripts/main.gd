@@ -4,6 +4,8 @@ extends Node3D
 ## Debug command-line options (after `--`):
 ##   --size=N --seed=N --autostart     generate immediately
 ##   --view=LAT,LON,ALT                initial camera position
+##   --sandbox                         start with costs and requirements off
+##   --demo-buildings=N                give each side a capital and ~N buildings
 ##   --demo-units=N                    scatter about N random units
 ##   --weather --turns=N               show the weather overlay; skip N turns
 ##   --screenshot=path.png             save a screenshot after generating, then quit
@@ -37,13 +39,19 @@ const TILE_SHADER := preload("res://shaders/planet_tiles.gdshader")
 @onready var weather_button: Button = $UI/Hud/TopRight/Buttons/WeatherButton
 @onready var next_turn_button: Button = $UI/Hud/NextTurnButton
 @onready var unit_layer: UnitLayer = $Units
+@onready var building_layer: BuildingLayer = $Buildings
+@onready var build_option: OptionButton = $UI/Hud/UnitBar/Margin/Row/BuildOption
+@onready var sandbox_check: CheckBox = $UI/Hud/UnitBar/Margin/Row/SandboxCheck
+@onready var resource_text: RichTextLabel = $UI/Hud/ResourceBar/Margin/Text
 @onready var unit_type_buttons: HBoxContainer = $UI/Hud/UnitBar/Margin/Row/TypeButtons
 @onready var remove_unit_button: Button = $UI/Hud/UnitBar/Margin/Row/RemoveButton
 @onready var side_option: OptionButton = $UI/Hud/UnitBar/Margin/Row/SideOption
 
 var planet: Planet
 var weather: WeatherSystem
+var game: GameState
 var units: UnitManager
+var buildings: BuildingManager
 var world_seed := 0
 
 var _material: ShaderMaterial
@@ -57,8 +65,12 @@ var _weather_texture: ImageTexture
 var weather_legend: VBoxContainer
 const TOOL_NONE := -1
 const TOOL_REMOVE := -2
-## Unit type being placed by clicking, or TOOL_NONE / TOOL_REMOVE.
+## Tools from here up build BuildingTypes.Type (tool - TOOL_BUILD).
+const TOOL_BUILD := 100
+## Unit type being trained by clicking, TOOL_BUILD + a building type, or
+## TOOL_NONE / TOOL_REMOVE.
 var _tool := TOOL_NONE
+var _tool_group: ButtonGroup
 var _notice := ""
 
 
@@ -169,9 +181,16 @@ func _on_world_generated(new_planet: Planet, new_weather: WeatherSystem,
 	_thread.wait_to_finish()
 	planet = new_planet
 	weather = new_weather
-	units = UnitManager.new(planet)
-	units.changed.connect(_on_units_changed)
+	game = GameState.new(planet)
+	game.sandbox = sandbox_check.button_pressed or _options.has("sandbox")
+	units = game.units
+	buildings = game.buildings
+	game.changed.connect(_on_game_changed)
 	unit_layer.setup(planet, units, PLANET_RADIUS)
+	building_layer.setup(planet, buildings, PLANET_RADIUS)
+	if _options.has("demo-buildings"):
+		_scatter_demo_buildings(int(_options["demo-buildings"]))
+	_update_resources()
 	if _options.has("demo-units"):
 		_scatter_demo_units(int(_options["demo-units"]))
 	_weather_texture = null
@@ -247,6 +266,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _build_unit_bar() -> void:
 	var group := ButtonGroup.new()
 	group.allow_unpress = true
+	_tool_group = group
 	for type in UnitTypes.count():
 		var button := Button.new()
 		button.text = UnitTypes.display_name(type)
@@ -259,34 +279,136 @@ func _build_unit_bar() -> void:
 	remove_unit_button.toggled.connect(_on_tool_toggled.bind(TOOL_REMOVE))
 	for i in UnitManager.PLAYERS.size():
 		side_option.add_item(UnitManager.PLAYERS[i]["name"], i)
+	side_option.item_selected.connect(func(_index: int) -> void: _update_resources())
+	sandbox_check.toggled.connect(func(on: bool) -> void:
+		if game != null:
+			game.sandbox = on)
+
+	# Build menu: every building type, grouped by category.
+	build_option.add_item("Build...", TOOL_NONE)
+	var category := -1
+	for type in BuildingTypes.count():
+		var data := BuildingTypes.info(type)
+		if data["category"] != category:
+			category = data["category"]
+			build_option.add_separator(BuildingTypes.CATEGORY_NAMES[category])
+		build_option.add_item(data["name"], type)
+		build_option.set_item_tooltip(build_option.item_count - 1, BuildingTypes.summary(type))
+	build_option.item_selected.connect(_on_build_selected)
 
 
 func _on_tool_toggled(on: bool, tool: int) -> void:
 	if on:
 		_tool = tool
+		build_option.select(0)
 	elif _tool == tool:
 		_tool = TOOL_NONE
 
 
-## Places or removes a unit on a clicked tile, depending on the active tool.
+func _on_build_selected(index: int) -> void:
+	var type := build_option.get_item_id(index)
+	var pressed := _tool_group.get_pressed_button()
+	if type >= 0 and pressed != null:
+		pressed.button_pressed = false
+	if type >= 0:
+		_tool = TOOL_BUILD + type
+	elif _tool >= TOOL_BUILD:
+		_tool = TOOL_NONE
+
+
+func _current_side() -> int:
+	return side_option.get_selected_id()
+
+
+## Trains a unit, builds a building or removes something on a clicked tile,
+## depending on the active tool.
 func _use_tool_on(tile: int) -> void:
+	var side := _current_side()
 	if _tool == TOOL_REMOVE:
 		var stack := units.units_at(tile)
-		if stack.is_empty():
-			_notice = "No units here to remove"
-		else:
+		var here := buildings.buildings_at(tile)
+		if not stack.is_empty():
 			units.remove_unit(stack[-1])
-		return
-	var reason := units.placement_block_reason(_tool, tile)
-	if reason != "":
-		_notice = "Can't place here: " + reason
-		return
-	units.add_unit(_tool, side_option.get_selected_id(), tile)
+		elif not here.is_empty():
+			buildings.remove_building(here[-1])
+		else:
+			_notice = "Nothing here to remove"
+	elif _tool >= TOOL_BUILD:
+		var type := _tool - TOOL_BUILD
+		var reason := game.build_block_reason(type, side, tile)
+		if reason != "":
+			_notice = "Can't build here: " + reason
+		else:
+			game.build(type, side, tile)
+	else:
+		var reason := game.train_block_reason(_tool, side, tile)
+		if reason != "":
+			_notice = "Can't place here: " + reason
+		else:
+			game.train(_tool, side, tile)
 
 
-func _on_units_changed() -> void:
+func _on_game_changed() -> void:
 	_shown_tile = -2
 	_update_info()
+	_update_resources()
+
+
+## Stockpile, next turn's net change and power for the selected side.
+func _update_resources() -> void:
+	if game == null:
+		return
+	var side := _current_side()
+	var player: Dictionary = UnitManager.PLAYERS[side]
+	var income := game.income_for(side)
+	var parts: Array[String] = []
+	for type in ResourceTypes.count():
+		var net: int = income[type]
+		var net_text := ""
+		if net != 0:
+			net_text = " [color=#%s]%+d[/color]" % ["8fd18f" if net > 0 else "ff8a80", net]
+		parts.append("[color=#%s]%s[/color] [b]%s[/b]%s" % [
+			ResourceTypes.color(type).to_html(false), ResourceTypes.display_name(type),
+			_thousands(game.stock[side][type]), net_text])
+	var power := game.power_for(side)
+	parts.append("[color=#%s]Power[/color] [b]%d/%d[/b]" % [
+		"ff8a80" if power.x < power.y else "f2f27a", power.x, power.y])
+	resource_text.text = "[center][color=#%s]■[/color] %s%s   %s[/center]" % [
+		(player["color"] as Color).to_html(false), player["name"],
+		" (sandbox)" if game.sandbox else "", "   ".join(parts)]
+	resource_text.tooltip_text = "Stockpile and change next turn. Power is supply / demand."
+
+
+## Debug: gives each side a capital and some random buildings around it.
+func _scatter_demo_buildings(count: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = world_seed + 99
+	var was_sandbox := game.sandbox
+	game.sandbox = true
+	for side in UnitManager.PLAYERS.size():
+		var home := -1
+		for attempt in 2000:
+			var tile := rng.randi_range(0, planet.tile_count - 1)
+			if game.build(BuildingTypes.Type.CAPITAL, side, tile) != null:
+				home = tile
+				break
+		if home < 0:
+			continue
+		# Spread outwards from the capital.
+		var frontier: Array[int] = [home]
+		var placed := 0
+		var attempts := 0
+		while placed < count and attempts < count * 40:
+			attempts += 1
+			var tile: int = frontier[rng.randi_range(0, frontier.size() - 1)]
+			var nbs := planet.get_neighbors(tile)
+			var next := nbs[rng.randi_range(0, nbs.size() - 1)]
+			if not frontier.has(next) and not Biomes.is_water(planet.biomes[next]):
+				frontier.append(next)
+			var type := rng.randi_range(0, BuildingTypes.count() - 1)
+			if game.build(type, side, tile) != null:
+				placed += 1
+	game.sandbox = was_sandbox
 
 
 ## Debug: drops `count` random units on valid tiles.
@@ -320,6 +442,7 @@ func _scatter_demo_units(count: int) -> void:
 func _on_next_turn() -> void:
 	if planet == null or weather == null:
 		return
+	game.end_turn()
 	weather.advance()
 	_refresh_weather()
 
@@ -409,6 +532,17 @@ func _update_info() -> void:
 		lines.append("[b]Visibility:[/b] " + wd["visibility"])
 		lines.append("[b]Combat & ranged:[/b] " + wd["combat"])
 		lines.append("[b]Air / support:[/b] " + wd["air"])
+	if buildings != null and not buildings.buildings_at(tile).is_empty():
+		var here := buildings.buildings_at(tile)
+		var owner: Dictionary = UnitManager.PLAYERS[here[0].owner]
+		var names: Array[String] = []
+		for building in here:
+			names.append("[color=#%s]■[/color] %s" % [
+				BuildingTypes.category_color(building.type).to_html(false), building.display_name()])
+		lines.append("")
+		lines.append("[font_size=17][b]Buildings: %d[/b][/font_size]  [color=#%s]%s[/color]" % [
+			here.size(), (owner["color"] as Color).to_html(false), owner["name"]])
+		lines.append(",  ".join(names))
 	if units != null:
 		var groups := units.stack_summary(tile)
 		if not groups.is_empty():

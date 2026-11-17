@@ -4,7 +4,8 @@ extends RefCounted
 ##
 ## Any number of units may share a tile. A unit may only be on a tile whose
 ## biome its type can enter (see UnitTypes.can_enter): land units on passable
-## land, naval units on water, aircraft anywhere.
+## land, naval units on water, aircraft anywhere. Roads let vehicles into
+## mountains and bridges let land units onto a shallow water tile.
 
 signal changed
 
@@ -16,6 +17,8 @@ const PLAYERS := [
 
 var planet: Planet
 var units: Array[Unit] = []
+## Optional: lets roads and bridges open up tiles (see placement_block_reason).
+var buildings: BuildingManager
 
 var _by_tile := {}  # tile id -> Array[Unit]
 var _next_id := 1
@@ -33,7 +36,19 @@ func can_place(type: int, tile: int) -> bool:
 func placement_block_reason(type: int, tile: int) -> String:
 	if tile < 0 or tile >= planet.tile_count:
 		return "No tile there"
-	return UnitTypes.entry_block_reason(type, planet.biomes[tile])
+	var biome := planet.biomes[tile]
+	var reason := UnitTypes.entry_block_reason(type, biome)
+	if reason == "" or buildings == null:
+		return reason
+	if UnitTypes.info(type)["domain"] == UnitTypes.Domain.LAND:
+		# A bridge carries land units over water; a road takes vehicles
+		# through otherwise impassable land such as mountains.
+		if Biomes.is_water(biome):
+			if buildings.has_type(tile, BuildingTypes.Type.BRIDGE):
+				return ""
+		elif buildings.has_type(tile, BuildingTypes.Type.ROAD):
+			return ""
+	return reason
 
 
 ## Creates a unit on a tile. Returns null if the tile is not valid for it.

@@ -51,10 +51,51 @@ Any number of units can share a tile. A unit can only be on a tile its type
 may occupy; this comes from each biome's movement costs, so armor is kept out
 of mountains because they are impassable to vehicles.
 
-There is no production, movement or combat yet. Use the **Place** bar at the
-bottom of the screen to put units on the map: pick a unit type and a side,
-then click tiles. **Remove** takes the newest unit off a clicked tile. Hover
-a unit button to see its stats.
+There is no movement or combat yet. Units are trained with the **Place** bar
+at the bottom of the screen: pick a unit type and a side, then click a tile on
+or next to that side's production building (Barracks for infantry, Factory for
+armor, Airbase for aircraft, Shipyard for naval). Hover a unit button to see
+its stats, cost and upkeep.
+
+## Buildings
+
+30 building types in six categories (military production, economy, defense,
+infrastructure, strategic, government), defined in
+`scripts/buildings/building_types.gd`. Pick one from the **Build...** menu and
+click a tile.
+
+- A tile can hold any number of buildings, but only one of each type, and all
+  must belong to the same side.
+- Most buildings need land. Shipyards, trade ports and coastal batteries need
+  land next to water. Bridges go on shallow water next to land. Farms can't be
+  built on mountains, desert or tundra.
+- Capital, Intelligence HQ and Space Center are limited to one per side.
+- A road lets vehicles into mountains; a bridge lets land units onto its
+  water tile.
+- **Remove** takes the newest unit off a clicked tile, or the newest building
+  if the tile has no units.
+
+Effects that depend on systems not built yet (vision, combat, research,
+missiles, morale) are stored as numbers under each building's `effects`.
+
+## Resources and economy
+
+Seven stockpiled resources: Money, Food, Materials, Rare Earths, Uranium, Fuel
+and Production (`scripts/economy/resource_types.gd`). Every unit and building
+has a build cost and a per-turn upkeep. The rules are in
+`scripts/game_state.gd`:
+
+- Each side starts with a stockpile and pays costs from it.
+- **Next Turn** adds each side's building output and subtracts upkeep.
+  Stockpiles stop at zero; running out has no further penalty yet.
+- Power is not stockpiled. Power plants (and the capital) supply it; most
+  other buildings draw it. If demand exceeds supply, buildings that draw power
+  produce proportionally less.
+- Each bank adds 10% to money made by buildings, up to 50%.
+- The resource bar shows the selected side's stockpile, next turn's change
+  and power supply / demand.
+- **Sandbox** ignores costs and training requirements (terrain rules still
+  apply), for setting up test situations.
 
 ## Controls
 
@@ -82,6 +123,9 @@ scripts/world/weather_system.gd  Per-turn weather simulation
 scripts/units/unit_types.gd    Unit type stats and which biomes each may occupy
 scripts/units/unit_manager.gd  Units on the map, stacking and placement rules
 scripts/units/unit_layer.gd    Unit tokens drawn on the globe
+scripts/buildings/             Building types, manager and globe layer
+scripts/economy/resource_types.gd  Resource definitions
+scripts/game_state.gd          Costs, training, power and per-turn income
 scripts/world/planet_mesh.gd   Mesh and tile-colour texture builder
 shaders/                       Tile, atmosphere and starfield shaders
 tests/                         Headless tests
@@ -95,6 +139,7 @@ can be recoloured cheaply later (ownership, fog of war, and so on).
 ```bash
 godot --headless --path . --script res://tests/test_planet.gd
 godot --headless --path . --script res://tests/test_units.gd
+godot --headless --path . --script res://tests/test_buildings.gd
 godot --headless --path . --script res://tests/test_interaction.gd
 ```
 

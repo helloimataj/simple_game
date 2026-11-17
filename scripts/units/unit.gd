@@ -4,7 +4,7 @@ extends RefCounted
 
 var id := 0
 var type := UnitTypes.Type.INFANTRY
-## Index into UnitManager.PLAYERS.
+## Index into Players.list.
 var owner := 0
 var tile := -1
 ## Remaining hit points. Also the unit's base power in battle.

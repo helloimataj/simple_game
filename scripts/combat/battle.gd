@@ -45,7 +45,7 @@ var rng: RandomNumberGenerator
 
 var tile := -1        ## the tile being fought over
 var from_tile := -1   ## the tile the attacker's ground units come from
-## Side (index into UnitManager.PLAYERS) of the attacker and the defender.
+## Side (index into Players.list) of the attacker and the defender.
 var sides: Array[int] = [0, 1]
 
 var phase := Phase.COMMIT
@@ -106,7 +106,7 @@ static func start_block_reason(game_state: GameState, attacker_side: int,
 
 
 func side_name(side: int) -> String:
-	return UnitManager.PLAYERS[sides[side]]["name"]
+	return Players.list[sides[side]]["name"]
 
 
 # --- Who can fight ---------------------------------------------------------------
@@ -179,7 +179,7 @@ func _find_defender_side(attacker_side: int) -> int:
 	for unit in game.units.units_at(tile):
 		if unit.owner != attacker_side:
 			return unit.owner
-	return (attacker_side + 1) % UnitManager.PLAYERS.size()
+	return (attacker_side + 1) % Players.list.size()
 
 
 # --- Power -----------------------------------------------------------------------

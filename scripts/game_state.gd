@@ -32,6 +32,9 @@ var sandbox := false:
 
 ## Stockpile per side: [{ResourceTypes.Type: amount}].
 var stock: Array[Dictionary] = []
+## Where each player started, and the spacing (radians) the starts were held to.
+var start_tiles: Array[int] = []
+var start_spacing := 0.0
 
 
 func _init(for_planet: Planet) -> void:
@@ -39,10 +42,34 @@ func _init(for_planet: Planet) -> void:
 	buildings = BuildingManager.new(planet)
 	units = UnitManager.new(planet)
 	units.buildings = buildings
-	for i in UnitManager.PLAYERS.size():
+	for i in Players.list.size():
 		stock.append(STARTING_STOCK.duplicate())
 	units.changed.connect(func() -> void: changed.emit())
 	buildings.changed.connect(func() -> void: changed.emit())
+
+
+# --- Starting positions ----------------------------------------------------------
+
+## Gives every player a capital at a random start, spread out across the
+## planet (see StartLocations). Returns the start tile of each player that got
+## one, in player order.
+func place_starting_capitals(world_seed: int) -> Array[int]:
+	var result := StartLocations.pick(planet, stock.size(), world_seed)
+	var tiles: Array[int] = result["tiles"]
+	start_spacing = result["min_distance"]
+	start_tiles.clear()
+	for player in tiles.size():
+		if buildings.add_building(BuildingTypes.Type.CAPITAL, player, tiles[player]) != null:
+			start_tiles.append(tiles[player])
+	return start_tiles
+
+
+## Tile of a player's capital, or -1 if it has none.
+func capital_of(player: int) -> int:
+	for building in buildings.buildings:
+		if building.owner == player and building.type == BuildingTypes.Type.CAPITAL:
+			return building.tile
+	return -1
 
 
 # --- Paying ------------------------------------------------------------------

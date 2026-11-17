@@ -9,12 +9,6 @@ extends RefCounted
 
 signal changed
 
-## Placeholder sides until players are designed.
-const PLAYERS := [
-	{"name": "Blue", "color": Color("3d8bfd")},
-	{"name": "Red", "color": Color("e5484d")},
-]
-
 var planet: Planet
 var units: Array[Unit] = []
 ## Optional: lets roads and bridges open up tiles (see placement_block_reason).

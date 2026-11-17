@@ -26,12 +26,24 @@ func _run() -> void:
 	await process_frame
 	main.size_slider.value = 20
 	main.seed_edit.value = 5
+	main.players_spin.value = 6
 	main._on_generate_pressed()
 	var waited := 0
 	while main.planet == null and waited < 600:
 		await process_frame
 		waited += 1
 	_expect(main.planet != null, "world generates")
+	_expect(Players.count() == int(main.players_spin.value) and main.side_option.item_count == Players.count(),
+		"the chosen number of players is in the game")
+	_expect(main.game.start_tiles.size() == Players.count(), "every player has a starting capital")
+	var capital_dir: Vector3 = main.planet.centers[main.game.capital_of(0)]
+	_expect(capital_dir.angle_to(main.camera.position.normalized()) < 0.01, "the view opens on the first player's capital")
+	main.side_option.select(1)
+	main.side_option.item_selected.emit(1)
+	capital_dir = main.planet.centers[main.game.capital_of(1)]
+	_expect(capital_dir.angle_to(main.camera.position.normalized()) < 0.01, "switching player turns the globe to their capital")
+	main.side_option.select(0)
+	main.side_option.item_selected.emit(0)
 	_expect(main.hud.visible, "HUD shown after generation")
 
 	var cam: GlobeCamera = main.camera
@@ -44,7 +56,8 @@ func _run() -> void:
 		_mouse_motion(center + Vector2(10 * (i + 1), 0), Vector2(10, 0))
 	_mouse_button(center + Vector2(100, 0), false)
 	await process_frame
-	_expect(cam.longitude < lon_before - 1.0, "dragging right spins the globe (lon %.1f -> %.1f)" % [lon_before, cam.longitude])
+	var lon_change := wrapf(cam.longitude - lon_before, -180.0, 180.0)
+	_expect(lon_change < -1.0, "dragging right spins the globe (lon %.1f -> %.1f)" % [lon_before, cam.longitude])
 	_expect(main._selected == -1, "a drag does not select a tile")
 
 	# Scroll in: altitude should drop.

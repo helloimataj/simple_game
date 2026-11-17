@@ -295,4 +295,4 @@ func _fill_column(side: int, units: Array, pool: Array) -> void:
 
 
 func _side_color(side: int) -> Color:
-	return UnitManager.PLAYERS[battle.sides[side]]["color"]
+	return Players.list[battle.sides[side]]["color"]

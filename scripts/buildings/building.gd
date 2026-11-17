@@ -4,7 +4,7 @@ extends RefCounted
 
 var id := 0
 var type := BuildingTypes.Type.BARRACKS
-## Index into UnitManager.PLAYERS.
+## Index into Players.list.
 var owner := 0
 var tile := -1
 

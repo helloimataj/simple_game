@@ -81,7 +81,7 @@ func rebuild() -> void:
 
 		var plate_scale := Vector3(spacing * 0.7, spacing, spacing * 0.7)
 		_plates.set_instance_transform(i, Transform3D(frame * Basis.from_scale(plate_scale), up * radius))
-		var owner_color: Color = UnitManager.PLAYERS[here[0].owner]["color"]
+		var owner_color: Color = Players.list[here[0].owner]["color"]
 		_plates.set_instance_color(i, owner_color.darkened(0.25))
 
 		var slots := maxi(here.size(), 8)

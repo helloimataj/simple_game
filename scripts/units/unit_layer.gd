@@ -82,7 +82,7 @@ func rebuild() -> void:
 			var origin := up * radius + offset
 			var basis := Basis(east, up, -north).scaled(Vector3.ONE * token_size)
 			transforms[type].append(Transform3D(basis, origin))
-			colors[type].append(UnitManager.PLAYERS[owner]["color"])
+			colors[type].append(Players.list[owner]["color"])
 			var count: int = groups[keys[i]]
 			if count > 1:
 				_labels.add_child(_count_label(count, origin + up * token_size * 2.2, token_size))

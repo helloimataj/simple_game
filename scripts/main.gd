@@ -2,7 +2,7 @@ extends Node3D
 ## Game entry point: world setup screen, background generation and globe view.
 ##
 ## Debug command-line options (after `--`):
-##   --size=N --seed=N --autostart     generate immediately
+##   --size=N --seed=N --players=N --autostart   generate immediately
 ##   --view=LAT,LON,ALT                initial camera position
 ##   --sandbox                         start with costs and requirements off
 ##   --demo-buildings=N                give each side a capital and ~N buildings
@@ -21,6 +21,7 @@ const TILE_SHADER := preload("res://shaders/planet_tiles.gdshader")
 @onready var size_label: Label = $UI/SetupPanel/Margin/VBox/SizeLabel
 @onready var size_slider: HSlider = $UI/SetupPanel/Margin/VBox/SizeSlider
 @onready var seed_edit: SpinBox = $UI/SetupPanel/Margin/VBox/SeedRow/SeedEdit
+@onready var players_spin: SpinBox = $UI/SetupPanel/Margin/VBox/PlayersRow/PlayersSpin
 @onready var random_seed_button: Button = $UI/SetupPanel/Margin/VBox/SeedRow/RandomSeedButton
 @onready var generate_button: Button = $UI/SetupPanel/Margin/VBox/GenerateButton
 
@@ -93,6 +94,10 @@ func _ready() -> void:
 	$UI.add_child(battle_panel)
 	battle_panel.closed.connect(_on_battle_closed)
 
+	players_spin.min_value = Players.MIN_PLAYERS
+	players_spin.max_value = Players.MAX_PLAYERS
+	if _options.has("players"):
+		players_spin.value = int(_options["players"])
 	size_slider.min_value = Planet.MIN_FREQUENCY
 	size_slider.max_value = Planet.MAX_FREQUENCY
 	size_slider.value_changed.connect(_on_size_changed)
@@ -188,7 +193,12 @@ func _on_world_generated(new_planet: Planet, new_weather: WeatherSystem,
 	_thread.wait_to_finish()
 	planet = new_planet
 	weather = new_weather
+	Players.setup(int(players_spin.value))
+	side_option.clear()
+	for i in Players.count():
+		side_option.add_item(Players.list[i]["name"], i)
 	game = GameState.new(planet)
+	game.place_starting_capitals(world_seed)
 	game.sandbox = sandbox_check.button_pressed or _options.has("sandbox")
 	units = game.units
 	buildings = game.buildings
@@ -215,13 +225,14 @@ func _on_world_generated(new_planet: Planet, new_weather: WeatherSystem,
 	_pick_hint = 0
 	_shown_tile = -2
 	_update_highlight()
-	world_info.text = "Seed %d  |  %d hexes per edge  |  %s tiles\n%s" % [
-		world_seed, planet.frequency, _thousands(planet.tile_count),
+	world_info.text = "Seed %d  |  %d hexes per edge  |  %s tiles  |  %d players\n%s" % [
+		world_seed, planet.frequency, _thousands(planet.tile_count), Players.count(),
 		"Drag to spin  |  Scroll / Q E to zoom  |  WASD / arrows to rotate  |  Click to select  |  Space: next turn"]
 
 	loading_panel.visible = false
 	hud.visible = true
 	camera.reset_view(PLANET_RADIUS)
+	_look_at_capital(0)
 	if _options.has("view"):
 		var v: PackedStringArray = str(_options["view"]).split(",")
 		if v.size() >= 3:
@@ -289,9 +300,7 @@ func _build_unit_bar() -> void:
 	remove_unit_button.toggled.connect(_on_tool_toggled.bind(TOOL_REMOVE))
 	attack_button.button_group = group
 	attack_button.toggled.connect(_on_tool_toggled.bind(TOOL_ATTACK))
-	for i in UnitManager.PLAYERS.size():
-		side_option.add_item(UnitManager.PLAYERS[i]["name"], i)
-	side_option.item_selected.connect(func(_index: int) -> void: _update_resources())
+	side_option.item_selected.connect(_on_side_selected)
 	sandbox_check.toggled.connect(func(on: bool) -> void:
 		if game != null:
 			game.sandbox = on)
@@ -326,6 +335,20 @@ func _on_build_selected(index: int) -> void:
 		_tool = TOOL_BUILD + type
 	elif _tool >= TOOL_BUILD:
 		_tool = TOOL_NONE
+
+
+func _on_side_selected(_index: int) -> void:
+	_update_resources()
+	_look_at_capital(_current_side())
+
+
+## Turns the globe to face a player's capital, keeping the zoom.
+func _look_at_capital(player: int) -> void:
+	var tile := game.capital_of(player) if game != null else -1
+	if tile < 0:
+		return
+	var dir := planet.centers[tile]
+	camera.set_view(rad_to_deg(Planet.latitude_of(dir)), rad_to_deg(Planet.longitude_of(dir)), camera.altitude)
 
 
 func _current_side() -> int:
@@ -390,7 +413,7 @@ func _update_resources() -> void:
 	if game == null:
 		return
 	var side := _current_side()
-	var player: Dictionary = UnitManager.PLAYERS[side]
+	var player: Dictionary = Players.list[side]
 	var income := game.income_for(side)
 	var parts: Array[String] = []
 	for type in ResourceTypes.count():
@@ -410,19 +433,14 @@ func _update_resources() -> void:
 	resource_text.tooltip_text = "Stockpile and change next turn. Power is supply / demand."
 
 
-## Debug: gives each side a capital and some random buildings around it.
+## Debug: gives each side some random buildings around its capital.
 func _scatter_demo_buildings(count: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = world_seed + 99
 	var was_sandbox := game.sandbox
 	game.sandbox = true
-	for side in UnitManager.PLAYERS.size():
-		var home := -1
-		for attempt in 2000:
-			var tile := rng.randi_range(0, planet.tile_count - 1)
-			if game.build(BuildingTypes.Type.CAPITAL, side, tile) != null:
-				home = tile
-				break
+	for side in Players.list.size():
+		var home := game.capital_of(side)
 		if home < 0:
 			continue
 		# Spread outwards from the capital.
@@ -452,7 +470,7 @@ func _scatter_demo_units(count: int) -> void:
 		attempts += 1
 		var tile := rng.randi_range(0, planet.tile_count - 1)
 		var type := rng.randi_range(0, UnitTypes.count() - 1)
-		var side := rng.randi_range(0, UnitManager.PLAYERS.size() - 1)
+		var side := rng.randi_range(0, Players.list.size() - 1)
 		if not units.can_place(type, tile):
 			continue
 		# Build small mixed stacks around the spot.
@@ -565,7 +583,7 @@ func _update_info() -> void:
 		lines.append("[b]Air / support:[/b] " + wd["air"])
 	if buildings != null and not buildings.buildings_at(tile).is_empty():
 		var here := buildings.buildings_at(tile)
-		var owner: Dictionary = UnitManager.PLAYERS[here[0].owner]
+		var owner: Dictionary = Players.list[here[0].owner]
 		var names: Array[String] = []
 		for building in here:
 			names.append("[color=#%s]■[/color] %s" % [
@@ -582,7 +600,7 @@ func _update_info() -> void:
 			lines.append("")
 			lines.append("[font_size=17][b]Units here: %d[/b][/font_size]" % units.units_at(tile).size())
 			for key in keys:
-				var player: Dictionary = UnitManager.PLAYERS[key[0]]
+				var player: Dictionary = Players.list[key[0]]
 				var hp := 0
 				for unit in units.units_at(tile):
 					if unit.owner == key[0] and unit.type == key[1]:

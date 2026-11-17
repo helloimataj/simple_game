@@ -44,7 +44,7 @@ func placement_block_reason(type: int, owner: int, tile: int) -> String:
 		return "%s cannot be built on %s" % [name, Biomes.display_name(biome)]
 	var tile_owner := owner_of(tile)
 	if tile_owner >= 0 and tile_owner != owner:
-		return "%s already has buildings here" % UnitManager.PLAYERS[tile_owner]["name"]
+		return "%s already has buildings here" % Players.list[tile_owner]["name"]
 	if has_type(tile, type):
 		return "There is already a %s here" % name
 	if data["unique"] and count_of(type, owner) > 0:

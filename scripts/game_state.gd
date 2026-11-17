@@ -126,6 +126,43 @@ func _has_producer_near(unit_type: int, player: int, tile: int) -> bool:
 	return false
 
 
+# --- Terrain and supply ---------------------------------------------------------
+
+## Buildings that do not make a place built-up.
+const NOT_URBAN: Array[int] = [
+	BuildingTypes.Type.ROAD, BuildingTypes.Type.BRIDGE, BuildingTypes.Type.FORTIFICATION,
+	BuildingTypes.Type.FARM]
+## Urban buildings on one tile that make it a city without a capital or
+## administrative center.
+const CITY_BUILDINGS := 4
+## How far to look for a supply source (the largest "supply_radius").
+const MAX_SUPPLY_RADIUS := 4
+
+
+## A tile is a city if it has a Capital or Administrative Center, or at least
+## CITY_BUILDINGS other buildings (not counting roads, bridges, forts or farms).
+func is_city(tile: int) -> bool:
+	var urban := 0
+	for building in buildings.buildings_at(tile):
+		if building.data()["effects"].get("city", false):
+			return true
+		if not NOT_URBAN.has(building.type):
+			urban += 1
+	return urban >= CITY_BUILDINGS
+
+
+## A unit is in supply if one of its side's buildings with a "supply_radius"
+## (Supply Depot, Capital, Shipyard, Airbase) is within that many tiles.
+func is_supplied(unit: Unit) -> bool:
+	var near := planet.tiles_within(unit.tile, MAX_SUPPLY_RADIUS)
+	for tile: int in near:
+		for building in buildings.buildings_at(tile):
+			if building.owner == unit.owner \
+					and building.data()["effects"].get("supply_radius", -1) >= near[tile]:
+				return true
+	return false
+
+
 # --- Economy -------------------------------------------------------------------
 
 ## Power a side generates and the power its buildings want: Vector2i(supply, demand).

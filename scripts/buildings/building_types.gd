@@ -79,7 +79,7 @@ const DATA := {
 		"description": "Builds armor and artillery.",
 		"cost": {R.MONEY: 400, R.MATERIALS: 80, R.PRODUCTION: 60},
 		"upkeep": {R.MONEY: 5}, "power": -3,
-		"trains": [UnitTypes.Type.ARMOR],
+		"trains": [UnitTypes.Type.ARMOR, UnitTypes.Type.ARTILLERY],
 	},
 	Type.AIRBASE: {
 		"name": "Airbase", "category": Category.MILITARY,
@@ -87,7 +87,7 @@ const DATA := {
 		"cost": {R.MONEY: 500, R.MATERIALS: 60, R.PRODUCTION: 60},
 		"upkeep": {R.MONEY: 6}, "power": -2,
 		"trains": [UnitTypes.Type.AIRCRAFT],
-		"effects": {"aircraft_operating_range": 12, "repairs": [UnitTypes.Type.AIRCRAFT]},
+		"effects": {"aircraft_operating_range": 12, "repairs": [UnitTypes.Type.AIRCRAFT], "supply_radius": 2},
 	},
 	Type.SHIPYARD: {
 		"name": "Naval Shipyard / Port", "category": Category.MILITARY,
@@ -96,7 +96,7 @@ const DATA := {
 		"cost": {R.MONEY: 600, R.MATERIALS: 100, R.PRODUCTION: 80},
 		"upkeep": {R.MONEY: 6}, "power": -3,
 		"trains": [UnitTypes.Type.NAVAL],
-		"effects": {"repairs": [UnitTypes.Type.NAVAL], "embarkation_point": true},
+		"effects": {"repairs": [UnitTypes.Type.NAVAL], "embarkation_point": true, "supply_radius": 3},
 	},
 	Type.MILITARY_ACADEMY: {
 		"name": "Military Academy", "category": Category.MILITARY,
@@ -165,14 +165,16 @@ const DATA := {
 		"description": "Defense bonus for units on that tile.",
 		"cost": {R.MONEY: 200, R.MATERIALS: 60, R.PRODUCTION: 30},
 		"upkeep": {R.MONEY: 1},
-		"effects": {"defense_bonus": 3},
+		## Added to the defender multiplier of battles on this tile.
+		"effects": {"defender_multiplier_bonus": 0.3},
 	},
 	Type.AIR_DEFENSE: {
 		"name": "Air Defense Site", "category": Category.DEFENSE,
 		"description": "Shoots at enemy aircraft in range.",
 		"cost": {R.MONEY: 350, R.MATERIALS: 40, R.RARE_EARTHS: 5, R.PRODUCTION: 40},
 		"upkeep": {R.MONEY: 4}, "power": -1,
-		"effects": {"range": 3, "attack_vs_aircraft": 6},
+		## Fires at enemy aircraft joining a battle within range, before it starts.
+		"effects": {"range": 3, "intercepts": UnitTypes.Type.AIRCRAFT, "power": 10},
 	},
 	Type.COASTAL_BATTERY: {
 		"name": "Coastal Battery", "category": Category.DEFENSE,
@@ -180,7 +182,8 @@ const DATA := {
 		"placement": Placement.COASTAL,
 		"cost": {R.MONEY: 350, R.MATERIALS: 60, R.PRODUCTION: 40},
 		"upkeep": {R.MONEY: 3},
-		"effects": {"range": 3, "attack_vs_naval": 6},
+		## Fires at enemy ships bombarding a battle within range, before it starts.
+		"effects": {"range": 3, "intercepts": UnitTypes.Type.NAVAL, "power": 10},
 	},
 	Type.RADAR_STATION: {
 		"name": "Radar Station", "category": Category.DEFENSE,
@@ -274,14 +277,14 @@ const DATA := {
 		"unique": true,
 		"produces": {R.MONEY: 20, R.FOOD: 5, R.PRODUCTION: 5},
 		"power": 5,
-		"effects": {"loss_morale_penalty": 3, "loss_production_penalty": 0.5},
+		"effects": {"loss_morale_penalty": 3, "loss_production_penalty": 0.5, "supply_radius": 4, "city": true},
 	},
 	Type.ADMIN_CENTER: {
 		"name": "Administrative Center", "category": Category.GOVERNMENT,
 		"description": "Lowers unrest and makes occupied land easier to govern.",
 		"cost": {R.MONEY: 400, R.MATERIALS: 30, R.PRODUCTION: 30},
 		"upkeep": {R.MONEY: 4}, "power": -1,
-		"effects": {"unrest_reduction": 2, "radius": 5},
+		"effects": {"unrest_reduction": 2, "radius": 5, "city": true},
 	},
 	Type.HOSPITAL: {
 		"name": "Hospital", "category": Category.GOVERNMENT,

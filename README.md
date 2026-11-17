@@ -37,7 +37,7 @@ weather. The **Weather** button tints the globe by condition.
 
 ## Units
 
-Four basic unit types, defined in `scripts/units/unit_types.gd` (specialised
+Five basic unit types, defined in `scripts/units/unit_types.gd` (specialised
 variants will build on these):
 
 | Unit | Role | May occupy |
@@ -46,16 +46,57 @@ variants will build on these):
 | Armor | Main attack unit; fast and strong on open ground, expensive | Land except mountains |
 | Aircraft | Fast, reaches anywhere, hits ground and naval units hard; can't hold territory | Anywhere |
 | Naval | Controls the seas, carries troops, bombards coasts | Water only |
+| Artillery | Free round before a battle; half power when defending | Land except mountains |
 
 Any number of units can share a tile. A unit can only be on a tile its type
 may occupy; this comes from each biome's movement costs, so armor is kept out
 of mountains because they are impassable to vehicles.
 
-There is no movement or combat yet. Units are trained with the **Place** bar
+There is no movement yet. Units are trained with the **Place** bar
 at the bottom of the screen: pick a unit type and a side, then click a tile on
 or next to that side's production building (Barracks for infantry, Factory for
-armor, Airbase for aircraft, Shipyard for naval). Hover a unit button to see
+armor and artillery, Airbase for aircraft, Shipyard for naval). Hover a unit button to see
 its stats, cost and upkeep.
+
+## Combat
+
+Rules are in `scripts/combat/battle.gd`; the screen is
+`scripts/ui/battle_panel.gd`.
+
+To attack: select a tile with your units, turn on **Attack**, and click an
+adjacent tile with enemy units.
+
+1. **Commit.** The attacker picks units from that one adjacent tile, then the
+   defender picks. Defenders left out retreat to an adjacent safe tile, or are
+   lost if there is none.
+2. **Roll.** Total = attacker power + defender power. The roll is drawn from a
+   normal distribution centred on Total / 2 with a standard deviation of 15%
+   of Total, clamped to 0..Total. The attacker owns 0..attacker power and the
+   defender owns the rest.
+3. **Damage.** The side whose zone the roll lands in deals damage equal to the
+   distance from the roll to the dividing line, rounded. The damaged player
+   assigns it; a unit absorbs as much as it can before the rest moves on.
+4. **Retreat.** Both players choose units to pull out, hidden from each other,
+   then reveal together. Retreating units take a pursuit hit of 25% of the
+   power of the enemy that stays.
+5. Repeat until one side has nothing left in the fight. If the attacker wins,
+   its ground units move in and capture the tile's buildings.
+
+A unit's power is its remaining hit points times its modifiers:
+
+| Modifier | Effect |
+| --- | --- |
+| Infantry | x1.5 in cities, forest, jungle and mountains |
+| Armor | x1.5 on plains, desert and tundra; x0.75 in cities |
+| Artillery | Free unanswered round before round 1; x0.5 when defending |
+| Aircraft | Joins from one of its side's airbases within 12 hexes; enemy air defense within 3 hexes fires on it first |
+| Naval | Bombards land battles within 2 hexes; enemy coastal batteries within 3 hexes fire on it first |
+| Defender | x1.2, +0.3 with fortifications, +0.2 in a city |
+| Out of supply | x0.5 unless within reach of a Supply Depot or Capital (4 hexes), Shipyard (3) or Airbase (2) of its side |
+| Weather | Heavy rain and mud ground air support; storms also stop bombardment |
+
+A tile is a city if it has a Capital or Administrative Center, or four other
+buildings (not counting roads, bridges, fortifications or farms).
 
 ## Buildings
 
@@ -75,8 +116,8 @@ click a tile.
 - **Remove** takes the newest unit off a clicked tile, or the newest building
   if the tile has no units.
 
-Effects that depend on systems not built yet (vision, combat, research,
-missiles, morale) are stored as numbers under each building's `effects`.
+Effects that depend on systems not built yet (vision, research, missiles,
+morale) are stored as numbers under each building's `effects`.
 
 ## Resources and economy
 
@@ -125,6 +166,8 @@ scripts/units/unit_manager.gd  Units on the map, stacking and placement rules
 scripts/units/unit_layer.gd    Unit tokens drawn on the globe
 scripts/buildings/             Building types, manager and globe layer
 scripts/economy/resource_types.gd  Resource definitions
+scripts/combat/battle.gd       Battle rules
+scripts/ui/                    Battle screen and slider
 scripts/game_state.gd          Costs, training, power and per-turn income
 scripts/world/planet_mesh.gd   Mesh and tile-colour texture builder
 shaders/                       Tile, atmosphere and starfield shaders
@@ -140,6 +183,7 @@ can be recoloured cheaply later (ownership, fog of war, and so on).
 godot --headless --path . --script res://tests/test_planet.gd
 godot --headless --path . --script res://tests/test_units.gd
 godot --headless --path . --script res://tests/test_buildings.gd
+godot --headless --path . --script res://tests/test_combat.gd
 godot --headless --path . --script res://tests/test_interaction.gd
 ```
 

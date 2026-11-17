@@ -43,6 +43,7 @@ const TILE_SHADER := preload("res://shaders/planet_tiles.gdshader")
 @onready var build_option: OptionButton = $UI/Hud/UnitBar/Margin/Row/BuildOption
 @onready var sandbox_check: CheckBox = $UI/Hud/UnitBar/Margin/Row/SandboxCheck
 @onready var resource_text: RichTextLabel = $UI/Hud/ResourceBar/Margin/Text
+@onready var attack_button: Button = $UI/Hud/UnitBar/Margin/Row/AttackButton
 @onready var unit_type_buttons: HBoxContainer = $UI/Hud/UnitBar/Margin/Row/TypeButtons
 @onready var remove_unit_button: Button = $UI/Hud/UnitBar/Margin/Row/RemoveButton
 @onready var side_option: OptionButton = $UI/Hud/UnitBar/Margin/Row/SideOption
@@ -65,12 +66,15 @@ var _weather_texture: ImageTexture
 var weather_legend: VBoxContainer
 const TOOL_NONE := -1
 const TOOL_REMOVE := -2
+const TOOL_ATTACK := -3
 ## Tools from here up build BuildingTypes.Type (tool - TOOL_BUILD).
 const TOOL_BUILD := 100
 ## Unit type being trained by clicking, TOOL_BUILD + a building type, or
 ## TOOL_NONE / TOOL_REMOVE.
 var _tool := TOOL_NONE
 var _tool_group: ButtonGroup
+var battle_panel: BattlePanel
+var _battle_rng := RandomNumberGenerator.new()
 var _notice := ""
 
 
@@ -85,6 +89,9 @@ func _ready() -> void:
 	camera.reset_view(PLANET_RADIUS)
 	_build_legend()
 	_build_unit_bar()
+	battle_panel = BattlePanel.new()
+	$UI.add_child(battle_panel)
+	battle_panel.closed.connect(_on_battle_closed)
 
 	size_slider.min_value = Planet.MIN_FREQUENCY
 	size_slider.max_value = Planet.MAX_FREQUENCY
@@ -228,7 +235,7 @@ func _on_world_generated(new_planet: Planet, new_weather: WeatherSystem,
 # --- Interaction ---------------------------------------------------------------
 
 func _process(_delta: float) -> void:
-	if planet == null or not hud.visible:
+	if planet == null or not hud.visible or battle_panel.visible:
 		return
 	var hovered := -1
 	if get_viewport().gui_get_hovered_control() == null:
@@ -240,14 +247,17 @@ func _process(_delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if planet == null or not hud.visible:
+	if planet == null or not hud.visible or battle_panel.visible:
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and not camera.dragged:
+			var previous := _selected
 			_selected = _tile_at_screen(mb.position)
 			_notice = ""
-			if _selected >= 0 and _tool != TOOL_NONE:
+			if _selected >= 0 and _tool == TOOL_ATTACK:
+				_try_attack(previous, _selected)
+			elif _selected >= 0 and _tool != TOOL_NONE:
 				_use_tool_on(_selected)
 			_update_highlight()
 			_shown_tile = -2
@@ -277,6 +287,8 @@ func _build_unit_bar() -> void:
 		unit_type_buttons.add_child(button)
 	remove_unit_button.button_group = group
 	remove_unit_button.toggled.connect(_on_tool_toggled.bind(TOOL_REMOVE))
+	attack_button.button_group = group
+	attack_button.toggled.connect(_on_tool_toggled.bind(TOOL_ATTACK))
 	for i in UnitManager.PLAYERS.size():
 		side_option.add_item(UnitManager.PLAYERS[i]["name"], i)
 	side_option.item_selected.connect(func(_index: int) -> void: _update_resources())
@@ -346,6 +358,25 @@ func _use_tool_on(tile: int) -> void:
 			_notice = "Can't place here: " + reason
 		else:
 			game.train(_tool, side, tile)
+
+
+## Attack tool: `from` is the previously selected tile, `target` the one just clicked.
+func _try_attack(from: int, target: int) -> void:
+	var side := _current_side()
+	var reason := Battle.start_block_reason(game, side, from, target)
+	if reason != "":
+		# Clicking one of your own stacks just picks it as the attacking tile.
+		var own := units.units_at(target).any(func(u: Unit) -> bool: return u.owner == side)
+		_notice = "Now click an adjacent tile with enemy units" if own else "Can't attack: " + reason
+		return
+	battle_panel.open(Battle.new(game, side, from, target, weather, _battle_rng))
+
+
+func _on_battle_closed() -> void:
+	_shown_tile = -2
+	_update_highlight()
+	_update_info()
+	_update_resources()
 
 
 func _on_game_changed() -> void:
@@ -552,9 +583,14 @@ func _update_info() -> void:
 			lines.append("[font_size=17][b]Units here: %d[/b][/font_size]" % units.units_at(tile).size())
 			for key in keys:
 				var player: Dictionary = UnitManager.PLAYERS[key[0]]
-				lines.append("[color=#%s]■[/color] %s: %d × %s" % [
+				var hp := 0
+				for unit in units.units_at(tile):
+					if unit.owner == key[0] and unit.type == key[1]:
+						hp += unit.hit_points
+				var full: int = groups[key] * UnitTypes.info(key[1])["power"]
+				lines.append("[color=#%s]■[/color] %s: %d × %s  [color=#aaaaaa]HP %d/%d[/color]" % [
 					(player["color"] as Color).to_html(false), player["name"],
-					groups[key], UnitTypes.display_name(key[1])])
+					groups[key], UnitTypes.display_name(key[1]), hp, full])
 	if _notice != "" and tile == _selected:
 		lines.append("\n[color=#ff8a80]%s[/color]" % _notice)
 	if tile == _selected and _hovered < 0:

@@ -4,7 +4,8 @@ extends Node3D
 ##
 ## Each tile shows one token per (side, unit type) on it, coloured by side,
 ## with a number when there is more than one such unit. Shapes seen from above:
-## infantry = disc, armor = square, aircraft = raised triangle, naval = long hull.
+## infantry = disc, armor = square, artillery = diamond, aircraft = raised
+## triangle, naval = long hull.
 
 var planet: Planet
 var units: UnitManager
@@ -124,6 +125,11 @@ static func _token_mesh(type: int) -> Mesh:
 			mesh.size = Vector3(1.2, 1.2, 0.25)
 			# Lay the triangle flat, pointing north, hovering above the ground.
 			return _raised(mesh, 1.4, Basis(Vector3.RIGHT, -PI / 2.0))
+		UnitTypes.Type.ARTILLERY:
+			# A diamond from above.
+			var mesh := BoxMesh.new()
+			mesh.size = Vector3(0.8, 0.5, 0.8)
+			return _raised(mesh, 0.25, Basis(Vector3.UP, PI / 4.0))
 		_:
 			var mesh := BoxMesh.new()
 			mesh.size = Vector3(0.55, 0.5, 1.5)

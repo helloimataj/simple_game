@@ -7,6 +7,7 @@ var type := UnitTypes.Type.INFANTRY
 ## Index into UnitManager.PLAYERS.
 var owner := 0
 var tile := -1
+## Remaining hit points. Also the unit's base power in battle.
 var hit_points := 0
 var moves_left := 0
 

@@ -148,8 +148,77 @@ func _run() -> void:
 	_expect(main.game.stock[0][ResourceTypes.Type.MONEY] == maxi(money + expected_net, 0),
 		"Next Turn applies income and upkeep (%d %+d)" % [money, expected_net])
 
+	await _check_battle(main)
+
 	print("ALL TESTS PASSED" if failures == 0 else "%d TEST(S) FAILED" % failures)
 	quit(1 if failures > 0 else 0)
+
+
+## Plays a whole battle through the battle screen's buttons.
+func _check_battle(main: Node) -> void:
+	var planet: Planet = main.planet
+	var from := -1
+	var target := -1
+	for t in planet.tile_count:
+		if planet.biomes[t] != Biomes.Type.PLAINS or not main.units.units_at(t).is_empty():
+			continue
+		for nb in planet.get_neighbors(t):
+			if planet.biomes[nb] == Biomes.Type.PLAINS and main.units.units_at(nb).is_empty():
+				from = t
+				target = nb
+		if from >= 0:
+			break
+	_expect(from >= 0, "found two adjacent plains tiles")
+	main.game.sandbox = true
+	for i in 4:
+		main.game.train(UnitTypes.Type.ARMOR, 0, from)
+	main.game.train(UnitTypes.Type.INFANTRY, 1, target)
+	main.game.train(UnitTypes.Type.INFANTRY, 1, target)
+
+	main.side_option.select(0)
+	main._try_attack(target, from)
+	_expect(not main.battle_panel.visible, "cannot attack from a tile without your units")
+	main._try_attack(from, target)
+	var panel: BattlePanel = main.battle_panel
+	_expect(panel.visible and panel.stage == BattlePanel.Stage.COMMIT_ATTACKER, "attack opens the battle screen")
+	main._on_next_turn.call()
+	var turn: int = main.weather.turn
+	var space := InputEventKey.new()
+	space.keycode = KEY_SPACE
+	space.pressed = true
+	root.push_input(space)
+	_expect(main.weather.turn == turn, "the turn cannot advance from the keyboard during a battle")
+
+	panel._primary.pressed.emit()
+	_expect(panel.stage == BattlePanel.Stage.COMMIT_DEFENDER, "attacker commits, then the defender chooses")
+	panel._primary.pressed.emit()
+	_expect(panel.stage == BattlePanel.Stage.ROLL and panel.battle.committed[0].size() == 4
+		and panel.battle.committed[1].size() == 2, "both sides committed everything")
+	var steps := 0
+	var saw_assign := false
+	var saw_retreat := false
+	while panel.stage != BattlePanel.Stage.FINISHED and steps < 200:
+		steps += 1
+		if panel.stage == BattlePanel.Stage.ASSIGN:
+			saw_assign = true
+			# Click a unit row to take the damage instead of auto-assigning.
+			var side: int = panel.battle.current_damage()["side"]
+			for row in panel._columns[side].get_children():
+				if row is Button and not row.disabled:
+					row.pressed.emit()
+					break
+		else:
+			saw_retreat = saw_retreat or panel.stage == BattlePanel.Stage.RETREAT_ATTACKER
+			panel._primary.pressed.emit()
+	_expect(panel.stage == BattlePanel.Stage.FINISHED, "battle screen reaches a result (%d steps)" % steps)
+	_expect(saw_assign, "damage was assigned by clicking units")
+	_expect(panel.battle.winner == Battle.ATTACKER, "four tanks on plains beat two infantry")
+	panel._primary.pressed.emit()
+	await process_frame
+	_expect(not panel.visible, "Close hides the battle screen")
+	var holders: Array = main.units.units_at(target)
+	_expect(not holders.is_empty() and holders.all(func(u: Unit) -> bool: return u.owner == 0),
+		"the winners hold the tile")
 
 
 func _mouse_button(pos: Vector2, pressed: bool) -> void:

@@ -53,7 +53,7 @@ func _init() -> void:
 
 	# New units start at full strength.
 	var ship := units.add_unit(N, 1, sea)
-	_expect(ship != null and ship.hit_points == UnitTypes.info(N)["hit_points"]
+	_expect(ship != null and ship.hit_points == UnitTypes.info(N)["power"]
 		and ship.moves_left == UnitTypes.info(N)["movement"], "new unit has full HP and movement")
 
 	# Relocating respects the same rules.
@@ -71,8 +71,8 @@ func _init() -> void:
 	# Type data is complete and matches the design brief.
 	for type in UnitTypes.count():
 		var d := UnitTypes.info(type)
-		for target in UnitTypes.count():
-			_expect(d["attack"].has(target), "%s has attack vs %s" % [d["name"], UnitTypes.display_name(target)])
+		_expect(d["power"] > 0 and d["movement"] > 0 and not d["cost"].is_empty(),
+			"%s has power, movement and a cost" % d["name"])
 	_expect(UnitTypes.info(I)["cost"][ResourceTypes.Type.MONEY] < UnitTypes.info(A)["cost"][ResourceTypes.Type.MONEY],
 		"infantry is cheaper than armor")
 	_expect(UnitTypes.info(I)["movement"] < UnitTypes.info(A)["movement"], "infantry is slower than armor")

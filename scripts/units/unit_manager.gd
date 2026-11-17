@@ -61,7 +61,7 @@ func add_unit(type: int, owner: int, tile: int) -> Unit:
 	unit.type = type
 	unit.owner = owner
 	unit.tile = tile
-	unit.hit_points = unit.data()["hit_points"]
+	unit.hit_points = unit.data()["power"]
 	unit.moves_left = unit.data()["movement"]
 	units.append(unit)
 	if not _by_tile.has(tile):

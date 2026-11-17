@@ -254,9 +254,9 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -420.0
+offset_left = -480.0
 offset_top = -116.0
-offset_right = 420.0
+offset_right = 480.0
 offset_bottom = -72.0
 grow_horizontal = 2
 grow_vertical = 0
@@ -293,6 +293,12 @@ layout_mode = 2
 tooltip_text = "Click a tile to remove the newest unit on it, or the newest building if it has no units"
 toggle_mode = true
 text = "Remove"
+
+[node name="AttackButton" type="Button" parent="UI/Hud/UnitBar/Margin/Row"]
+layout_mode = 2
+tooltip_text = "Select a tile with your units, turn this on, then click an adjacent tile with enemy units"
+toggle_mode = true
+text = "Attack"
 
 [node name="Separator" type="VSeparator" parent="UI/Hud/UnitBar/Margin/Row"]
 layout_mode = 2

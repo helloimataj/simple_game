@@ -87,6 +87,22 @@ func find_tile(dir: Vector3, start := 0) -> int:
 	return current
 
 
+## Tiles within `radius` steps of a tile: {tile: distance}, including itself.
+func tiles_within(tile: int, radius: int) -> Dictionary:
+	var distance := {tile: 0}
+	var frontier: Array[int] = [tile]
+	for step in range(1, radius + 1):
+		var next: Array[int] = []
+		for t in frontier:
+			for k in range(neighbor_offsets[t], neighbor_offsets[t + 1]):
+				var nb := neighbors[k]
+				if not distance.has(nb):
+					distance[nb] = step
+					next.append(nb)
+		frontier = next
+	return distance
+
+
 ## Builds the tile geometry. `progress` is called with values 0..1.
 func build(edge_length: int, progress := Callable()) -> void:
 	frequency = clampi(edge_length, 1, 1000)

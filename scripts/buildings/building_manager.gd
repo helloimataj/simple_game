@@ -115,6 +115,19 @@ func count_of(type: int, owner: int) -> int:
 	return total
 
 
+## Hands a tile's buildings to another side. A one-per-side building the new
+## owner already has is destroyed instead.
+func capture_tile(tile: int, new_owner: int) -> void:
+	for building: Building in buildings_at(tile).duplicate():
+		if building.owner == new_owner:
+			continue
+		if building.data()["unique"] and count_of(building.type, new_owner) > 0:
+			remove_building(building)
+		else:
+			building.owner = new_owner
+	changed.emit()
+
+
 func owned_by(owner: int) -> Array[Building]:
 	var out: Array[Building] = []
 	for building in buildings:

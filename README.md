@@ -35,6 +35,27 @@ movement, ranged and melee modifiers, air and off-board support) are in
 **Next Turn** (or Space) advances the turn, which for now only moves the
 weather. The **Weather** button tints the globe by condition.
 
+## Units
+
+Four basic unit types, defined in `scripts/units/unit_types.gd` (specialised
+variants will build on these):
+
+| Unit | Role | May occupy |
+| --- | --- | --- |
+| Infantry | Cheap and flexible; strong in close terrain, weak in the open against armor | Any land |
+| Armor | Main attack unit; fast and strong on open ground, expensive | Land except mountains |
+| Aircraft | Fast, reaches anywhere, hits ground and naval units hard; can't hold territory | Anywhere |
+| Naval | Controls the seas, carries troops, bombards coasts | Water only |
+
+Any number of units can share a tile. A unit can only be on a tile its type
+may occupy; this comes from each biome's movement costs, so armor is kept out
+of mountains because they are impassable to vehicles.
+
+There is no production, movement or combat yet. Use the **Place** bar at the
+bottom of the screen to put units on the map: pick a unit type and a side,
+then click tiles. **Remove** takes the newest unit off a clicked tile. Hover
+a unit button to see its stats.
+
 ## Controls
 
 | Action | Input |
@@ -58,6 +79,9 @@ scripts/world/terrain_generator.gd  Plates, climate and biomes
 scripts/world/biomes.gd        Biome colours, rules text and stats
 scripts/world/weather.gd       Weather rules text, modifiers and overlay colours
 scripts/world/weather_system.gd  Per-turn weather simulation
+scripts/units/unit_types.gd    Unit type stats and which biomes each may occupy
+scripts/units/unit_manager.gd  Units on the map, stacking and placement rules
+scripts/units/unit_layer.gd    Unit tokens drawn on the globe
 scripts/world/planet_mesh.gd   Mesh and tile-colour texture builder
 shaders/                       Tile, atmosphere and starfield shaders
 tests/                         Headless tests
@@ -70,6 +94,7 @@ can be recoloured cheaply later (ownership, fog of war, and so on).
 
 ```bash
 godot --headless --path . --script res://tests/test_planet.gd
+godot --headless --path . --script res://tests/test_units.gd
 godot --headless --path . --script res://tests/test_interaction.gd
 ```
 

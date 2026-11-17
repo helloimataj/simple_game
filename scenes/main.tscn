@@ -1,9 +1,10 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/globe_camera.gd" id="2_camera"]
 [ext_resource type="Shader" path="res://shaders/starfield.gdshader" id="3_stars"]
 [ext_resource type="Shader" path="res://shaders/atmosphere.gdshader" id="4_atmo"]
+[ext_resource type="Script" path="res://scripts/units/unit_layer.gd" id="5_units"]
 
 [sub_resource type="ShaderMaterial" id="SkyMat"]
 shader = ExtResource("3_stars")
@@ -45,6 +46,9 @@ transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.43
 light_energy = 1.1
 
 [node name="Planet" type="MeshInstance3D" parent="."]
+
+[node name="Units" type="Node3D" parent="."]
+script = ExtResource("5_units")
 
 [node name="Atmosphere" type="MeshInstance3D" parent="."]
 visible = false
@@ -237,6 +241,58 @@ theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
 [node name="Entries" type="VBoxContainer" parent="UI/Hud/TopRight/Legend/Margin"]
+layout_mode = 2
+
+[node name="UnitBar" type="PanelContainer" parent="UI/Hud"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -116.0
+offset_right = 300.0
+offset_bottom = -72.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="Margin" type="MarginContainer" parent="UI/Hud/UnitBar"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
+
+[node name="Row" type="HBoxContainer" parent="UI/Hud/UnitBar/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="Label" type="Label" parent="UI/Hud/UnitBar/Margin/Row"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.7)
+text = "Place:"
+
+[node name="TypeButtons" type="HBoxContainer" parent="UI/Hud/UnitBar/Margin/Row"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="RemoveButton" type="Button" parent="UI/Hud/UnitBar/Margin/Row"]
+layout_mode = 2
+tooltip_text = "Click a tile to remove the newest unit on it"
+toggle_mode = true
+text = "Remove"
+
+[node name="Separator" type="VSeparator" parent="UI/Hud/UnitBar/Margin/Row"]
+layout_mode = 2
+
+[node name="SideLabel" type="Label" parent="UI/Hud/UnitBar/Margin/Row"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.7)
+text = "Side:"
+
+[node name="SideOption" type="OptionButton" parent="UI/Hud/UnitBar/Margin/Row"]
 layout_mode = 2
 
 [node name="NextTurnButton" type="Button" parent="UI/Hud"]

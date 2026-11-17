@@ -81,6 +81,33 @@ func _run() -> void:
 	main.weather_button.button_pressed = true
 	_expect(main._material.get_shader_parameter("show_weather") == true, "Weather button turns the overlay on")
 
+	# Placing units with the toolbar: click places on valid tiles only.
+	var tile: int = main._selected
+	var water := Biomes.is_water(main.planet.biomes[tile])
+	var valid_type := UnitTypes.Type.NAVAL if water else UnitTypes.Type.INFANTRY
+	var invalid_type := UnitTypes.Type.INFANTRY if water else UnitTypes.Type.NAVAL
+	var buttons: Array = main.unit_type_buttons.get_children()
+	buttons[valid_type].button_pressed = true
+	for i in 3:
+		_mouse_button(center, true)
+		_mouse_button(center, false)
+	await process_frame
+	_expect(main.units.units_at(tile).size() == 3, "three clicks stack three units on the tile")
+	_expect(main.tile_info.text.contains("Units here: 3"), "info panel lists the stack")
+	buttons[invalid_type].button_pressed = true
+	_mouse_button(center, true)
+	_mouse_button(center, false)
+	await process_frame
+	_expect(main.units.units_at(tile).size() == 3, "invalid unit type is not placed")
+	_expect(main.tile_info.text.contains("Can't place here"), "info panel explains why")
+	main.remove_unit_button.button_pressed = true
+	_mouse_button(center, true)
+	_mouse_button(center, false)
+	await process_frame
+	_expect(main.units.units_at(tile).size() == 2, "Remove tool removes one unit")
+	main.remove_unit_button.button_pressed = false
+	_expect(main._tool == main.TOOL_NONE, "untoggling returns to plain selection")
+
 	print("ALL TESTS PASSED" if failures == 0 else "%d TEST(S) FAILED" % failures)
 	quit(1 if failures > 0 else 0)
 

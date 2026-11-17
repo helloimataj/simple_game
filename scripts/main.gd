@@ -4,6 +4,7 @@ extends Node3D
 ## Debug command-line options (after `--`):
 ##   --size=N --seed=N --autostart     generate immediately
 ##   --view=LAT,LON,ALT                initial camera position
+##   --demo-units=N                    scatter about N random units
 ##   --weather --turns=N               show the weather overlay; skip N turns
 ##   --screenshot=path.png             save a screenshot after generating, then quit
 
@@ -35,9 +36,14 @@ const TILE_SHADER := preload("res://shaders/planet_tiles.gdshader")
 @onready var world_info: Label = $UI/Hud/WorldInfo
 @onready var weather_button: Button = $UI/Hud/TopRight/Buttons/WeatherButton
 @onready var next_turn_button: Button = $UI/Hud/NextTurnButton
+@onready var unit_layer: UnitLayer = $Units
+@onready var unit_type_buttons: HBoxContainer = $UI/Hud/UnitBar/Margin/Row/TypeButtons
+@onready var remove_unit_button: Button = $UI/Hud/UnitBar/Margin/Row/RemoveButton
+@onready var side_option: OptionButton = $UI/Hud/UnitBar/Margin/Row/SideOption
 
 var planet: Planet
 var weather: WeatherSystem
+var units: UnitManager
 var world_seed := 0
 
 var _material: ShaderMaterial
@@ -49,6 +55,11 @@ var _shown_tile := -2
 var _options := {}
 var _weather_texture: ImageTexture
 var weather_legend: VBoxContainer
+const TOOL_NONE := -1
+const TOOL_REMOVE := -2
+## Unit type being placed by clicking, or TOOL_NONE / TOOL_REMOVE.
+var _tool := TOOL_NONE
+var _notice := ""
 
 
 func _ready() -> void:
@@ -61,6 +72,7 @@ func _ready() -> void:
 
 	camera.reset_view(PLANET_RADIUS)
 	_build_legend()
+	_build_unit_bar()
 
 	size_slider.min_value = Planet.MIN_FREQUENCY
 	size_slider.max_value = Planet.MAX_FREQUENCY
@@ -157,6 +169,11 @@ func _on_world_generated(new_planet: Planet, new_weather: WeatherSystem,
 	_thread.wait_to_finish()
 	planet = new_planet
 	weather = new_weather
+	units = UnitManager.new(planet)
+	units.changed.connect(_on_units_changed)
+	unit_layer.setup(planet, units, PLANET_RADIUS)
+	if _options.has("demo-units"):
+		_scatter_demo_units(int(_options["demo-units"]))
 	_weather_texture = null
 	_refresh_weather()
 	if _options.has("weather"):
@@ -210,7 +227,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and not camera.dragged:
 			_selected = _tile_at_screen(mb.position)
+			_notice = ""
+			if _selected >= 0 and _tool != TOOL_NONE:
+				_use_tool_on(_selected)
 			_update_highlight()
+			_shown_tile = -2
 			_update_info()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
@@ -219,6 +240,79 @@ func _unhandled_input(event: InputEvent) -> void:
 			_update_info()
 		elif event.keycode == KEY_SPACE:
 			_on_next_turn()
+
+
+# --- Units ---------------------------------------------------------------------
+
+func _build_unit_bar() -> void:
+	var group := ButtonGroup.new()
+	group.allow_unpress = true
+	for type in UnitTypes.count():
+		var button := Button.new()
+		button.text = UnitTypes.display_name(type)
+		button.toggle_mode = true
+		button.button_group = group
+		button.tooltip_text = UnitTypes.summary(type)
+		button.toggled.connect(_on_tool_toggled.bind(type))
+		unit_type_buttons.add_child(button)
+	remove_unit_button.button_group = group
+	remove_unit_button.toggled.connect(_on_tool_toggled.bind(TOOL_REMOVE))
+	for i in UnitManager.PLAYERS.size():
+		side_option.add_item(UnitManager.PLAYERS[i]["name"], i)
+
+
+func _on_tool_toggled(on: bool, tool: int) -> void:
+	if on:
+		_tool = tool
+	elif _tool == tool:
+		_tool = TOOL_NONE
+
+
+## Places or removes a unit on a clicked tile, depending on the active tool.
+func _use_tool_on(tile: int) -> void:
+	if _tool == TOOL_REMOVE:
+		var stack := units.units_at(tile)
+		if stack.is_empty():
+			_notice = "No units here to remove"
+		else:
+			units.remove_unit(stack[-1])
+		return
+	var reason := units.placement_block_reason(_tool, tile)
+	if reason != "":
+		_notice = "Can't place here: " + reason
+		return
+	units.add_unit(_tool, side_option.get_selected_id(), tile)
+
+
+func _on_units_changed() -> void:
+	_shown_tile = -2
+	_update_info()
+
+
+## Debug: drops `count` random units on valid tiles.
+func _scatter_demo_units(count: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = world_seed
+	var placed := 0
+	var attempts := 0
+	while placed < count and attempts < count * 50:
+		attempts += 1
+		var tile := rng.randi_range(0, planet.tile_count - 1)
+		var type := rng.randi_range(0, UnitTypes.count() - 1)
+		var side := rng.randi_range(0, UnitManager.PLAYERS.size() - 1)
+		if not units.can_place(type, tile):
+			continue
+		# Build small mixed stacks around the spot.
+		for i in rng.randi_range(1, 4):
+			units.add_unit(type, side, tile)
+			placed += 1
+		for nb in planet.get_neighbors(tile):
+			var other := rng.randi_range(0, UnitTypes.count() - 1)
+			if rng.randf() < 0.5 and units.can_place(other, nb):
+				units.add_unit(other, side, nb)
+				placed += 1
+				if units.add_unit(type, side, nb) != null:
+					placed += 1
 
 
 # --- Turns and weather -----------------------------------------------------------
@@ -315,6 +409,20 @@ func _update_info() -> void:
 		lines.append("[b]Visibility:[/b] " + wd["visibility"])
 		lines.append("[b]Combat & ranged:[/b] " + wd["combat"])
 		lines.append("[b]Air / support:[/b] " + wd["air"])
+	if units != null:
+		var groups := units.stack_summary(tile)
+		if not groups.is_empty():
+			var keys := groups.keys()
+			keys.sort()
+			lines.append("")
+			lines.append("[font_size=17][b]Units here: %d[/b][/font_size]" % units.units_at(tile).size())
+			for key in keys:
+				var player: Dictionary = UnitManager.PLAYERS[key[0]]
+				lines.append("[color=#%s]■[/color] %s: %d × %s" % [
+					(player["color"] as Color).to_html(false), player["name"],
+					groups[key], UnitTypes.display_name(key[1])])
+	if _notice != "" and tile == _selected:
+		lines.append("\n[color=#ff8a80]%s[/color]" % _notice)
 	if tile == _selected and _hovered < 0:
 		lines.append("\n[color=#ffd23f]Selected[/color]  [color=#888888](Esc to clear)[/color]")
 	tile_info.text = "\n".join(lines)

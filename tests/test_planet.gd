@@ -21,6 +21,42 @@ func _expect(cond: bool, msg: String) -> void:
 		push_error("FAIL: " + msg)
 
 
+func _check_weather(planet: Planet) -> void:
+	var t0 := Time.get_ticks_msec()
+	var weather := WeatherSystem.new()
+	weather.setup(planet, 3)
+	var twin := WeatherSystem.new()
+	twin.setup(planet, 3)
+	var totals := PackedInt32Array()
+	totals.resize(Weather.count())
+	var changed := 0
+	var mud_on_water := 0
+	var turns := 12
+	for turn in turns:
+		var before := weather.current.duplicate()
+		weather.advance()
+		twin.advance()
+		for t in planet.tile_count:
+			var w := weather.current[t]
+			totals[w] += 1
+			if w != before[t]:
+				changed += 1
+			if w == Weather.Type.MUD and Biomes.is_water(planet.biomes[t]):
+				mud_on_water += 1
+	var parts: Array[String] = []
+	for w in Weather.count():
+		parts.append("%s %.0f%%" % [Weather.info(w)["name"].split(" ")[0],
+			100.0 * totals[w] / (turns * planet.tile_count)])
+		_expect(totals[w] > 0, "weather %s occurs" % Weather.info(w)["name"])
+	print("  weather %d ms/turn | %s | %.0f%% of tiles change per turn" % [
+		(Time.get_ticks_msec() - t0) / (turns + 2), ", ".join(parts),
+		100.0 * changed / (turns * planet.tile_count)])
+	_expect(weather.current == twin.current, "weather is deterministic for a seed")
+	_expect(changed > 0, "weather changes between turns")
+	_expect(mud_on_water == 0, "no mud on water")
+	_expect(totals[Weather.Type.CLEAR] > totals[Weather.Type.STORM], "clear is more common than storms")
+
+
 func _check_planet(n: int) -> void:
 	var t0 := Time.get_ticks_msec()
 	var planet := Planet.new()
@@ -96,3 +132,5 @@ func _check_planet(n: int) -> void:
 		_expect(absf(land_pct - 29.0) < 2.0, "land fraction near 29%")
 		for b in Biomes.count():
 			_expect(counts[b] > 0, "biome %s present" % Biomes.display_name(b))
+
+	_check_weather(planet)

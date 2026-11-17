@@ -4,6 +4,7 @@ extends Node3D
 ## Debug command-line options (after `--`):
 ##   --size=N --seed=N --autostart     generate immediately
 ##   --view=LAT,LON,ALT                initial camera position
+##   --weather --turns=N               show the weather overlay; skip N turns
 ##   --screenshot=path.png             save a screenshot after generating, then quit
 
 const PLANET_RADIUS := 10.0
@@ -32,8 +33,11 @@ const TILE_SHADER := preload("res://shaders/planet_tiles.gdshader")
 @onready var borders_button: Button = $UI/Hud/TopRight/Buttons/BordersButton
 @onready var new_world_button: Button = $UI/Hud/TopRight/Buttons/NewWorldButton
 @onready var world_info: Label = $UI/Hud/WorldInfo
+@onready var weather_button: Button = $UI/Hud/TopRight/Buttons/WeatherButton
+@onready var next_turn_button: Button = $UI/Hud/NextTurnButton
 
 var planet: Planet
+var weather: WeatherSystem
 var world_seed := 0
 
 var _material: ShaderMaterial
@@ -43,6 +47,8 @@ var _selected := -1
 var _pick_hint := 0
 var _shown_tile := -2
 var _options := {}
+var _weather_texture: ImageTexture
+var weather_legend: VBoxContainer
 
 
 func _ready() -> void:
@@ -65,6 +71,8 @@ func _ready() -> void:
 	borders_button.toggled.connect(func(on: bool) -> void:
 		_material.set_shader_parameter("border_strength", 0.35 if on else 0.0))
 	new_world_button.pressed.connect(_show_setup)
+	weather_button.toggled.connect(_on_weather_toggled)
+	next_turn_button.pressed.connect(_on_next_turn)
 
 	_randomize_seed()
 	if _options.has("size"):
@@ -126,10 +134,13 @@ func _generate_world(edge: int, gen_seed: int) -> void:
 	_report("Building globe mesh...", 0.75)
 	var arrays := PlanetMesh.build_arrays(new_planet, PLANET_RADIUS)
 	var colors := PlanetMesh.build_color_data(new_planet)
+	_report("Brewing weather...", 0.92)
+	var new_weather := WeatherSystem.new()
+	new_weather.setup(new_planet, gen_seed)
 	_report("Finishing...", 0.97)
 	print("World %d (edge %d, %d tiles) generated in %d ms" % [
 		gen_seed, edge, new_planet.tile_count, Time.get_ticks_msec() - t0])
-	_on_world_generated.call_deferred(new_planet, arrays, colors)
+	_on_world_generated.call_deferred(new_planet, new_weather, arrays, colors)
 
 
 func _report(text: String, value: float) -> void:
@@ -141,9 +152,17 @@ func _set_progress(text: String, value: float) -> void:
 	progress_bar.value = value
 
 
-func _on_world_generated(new_planet: Planet, arrays: Array, colors: PackedByteArray) -> void:
+func _on_world_generated(new_planet: Planet, new_weather: WeatherSystem,
+		arrays: Array, colors: PackedByteArray) -> void:
 	_thread.wait_to_finish()
 	planet = new_planet
+	weather = new_weather
+	_weather_texture = null
+	_refresh_weather()
+	if _options.has("weather"):
+		weather_button.button_pressed = true
+	for i in int(_options.get("turns", 0)):
+		_on_next_turn()
 	planet_instance.mesh = PlanetMesh.create_mesh(arrays)
 	_material.set_shader_parameter("tile_colors", PlanetMesh.create_color_texture(planet, colors))
 	atmosphere.visible = true
@@ -155,7 +174,7 @@ func _on_world_generated(new_planet: Planet, arrays: Array, colors: PackedByteAr
 	_update_highlight()
 	world_info.text = "Seed %d  |  %d hexes per edge  |  %s tiles\n%s" % [
 		world_seed, planet.frequency, _thousands(planet.tile_count),
-		"Drag to spin  |  Scroll / Q E to zoom  |  WASD / arrows to rotate  |  Click to select"]
+		"Drag to spin  |  Scroll / Q E to zoom  |  WASD / arrows to rotate  |  Click to select  |  Space: next turn"]
 
 	loading_panel.visible = false
 	hud.visible = true
@@ -193,10 +212,41 @@ func _unhandled_input(event: InputEvent) -> void:
 			_selected = _tile_at_screen(mb.position)
 			_update_highlight()
 			_update_info()
-	elif event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
-		_selected = -1
-		_update_highlight()
-		_update_info()
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_ESCAPE:
+			_selected = -1
+			_update_highlight()
+			_update_info()
+		elif event.keycode == KEY_SPACE:
+			_on_next_turn()
+
+
+# --- Turns and weather -----------------------------------------------------------
+
+func _on_next_turn() -> void:
+	if planet == null or weather == null:
+		return
+	weather.advance()
+	_refresh_weather()
+
+
+## Pushes the current weather to the globe overlay and the HUD.
+func _refresh_weather() -> void:
+	var image := Image.create_from_data(PlanetMesh.TEXTURE_WIDTH, PlanetMesh.texture_height(planet),
+		false, Image.FORMAT_RGBA8, weather.build_overlay_data())
+	if _weather_texture == null:
+		_weather_texture = ImageTexture.create_from_image(image)
+		_material.set_shader_parameter("tile_weather", _weather_texture)
+	else:
+		_weather_texture.update(image)
+	next_turn_button.text = "Next Turn  (turn %d)" % weather.turn
+	_shown_tile = -2
+	_update_info()
+
+
+func _on_weather_toggled(on: bool) -> void:
+	_material.set_shader_parameter("show_weather", on)
+	weather_legend.visible = on
 
 
 ## Tile under a screen position, or -1 if the cursor misses the globe.
@@ -252,6 +302,19 @@ func _update_info() -> void:
 	lines.append("[b]Movement:[/b] " + data["movement"])
 	lines.append("[b]Combat & vision:[/b] " + data["combat"])
 	lines.append("[b]Strategic role:[/b] " + data["strategic"])
+	if weather != null:
+		var w := weather.weather_at(tile)
+		var wd := Weather.info(w)
+		var local := Weather.local_name(w, biome, planet.temperature[tile])
+		var title: String = wd["name"]
+		if not title.contains(local):
+			title = "%s (%s)" % [local, title]
+		lines.append("")
+		lines.append("[font_size=17][b]Weather: %s[/b][/font_size]" % title)
+		lines.append("[b]Movement:[/b] " + wd["movement"])
+		lines.append("[b]Visibility:[/b] " + wd["visibility"])
+		lines.append("[b]Combat & ranged:[/b] " + wd["combat"])
+		lines.append("[b]Air / support:[/b] " + wd["air"])
 	if tile == _selected and _hovered < 0:
 		lines.append("\n[color=#ffd23f]Selected[/color]  [color=#888888](Esc to clear)[/color]")
 	tile_info.text = "\n".join(lines)
@@ -271,6 +334,26 @@ func _build_legend() -> void:
 		row.add_child(swatch)
 		row.add_child(label)
 		legend_entries.add_child(row)
+
+	# Weather overlay colours, shown only while the overlay is on.
+	weather_legend = VBoxContainer.new()
+	weather_legend.visible = false
+	weather_legend.add_child(HSeparator.new())
+	for w in Weather.count():
+		if w == Weather.Type.CLEAR:
+			continue
+		var row := HBoxContainer.new()
+		var swatch := ColorRect.new()
+		var overlay := Weather.overlay_color(w)
+		swatch.color = Color(overlay.r, overlay.g, overlay.b)
+		swatch.custom_minimum_size = Vector2(16, 16)
+		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var label := Label.new()
+		label.text = Weather.info(w)["name"]
+		row.add_child(swatch)
+		row.add_child(label)
+		weather_legend.add_child(row)
+	legend_entries.add_child(weather_legend)
 
 
 # --- Utilities -----------------------------------------------------------------

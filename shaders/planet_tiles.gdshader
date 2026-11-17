@@ -3,6 +3,9 @@ render_mode cull_back;
 
 // RGB = tile colour (sRGB), A = biome id. One texel per tile; see PlanetMesh.
 uniform sampler2D tile_colors : source_color, filter_nearest;
+// Weather overlay, one texel per tile: RGB = tint, A = tint strength.
+uniform sampler2D tile_weather : source_color, filter_nearest;
+uniform bool show_weather = false;
 uniform float border_strength : hint_range(0.0, 1.0) = 0.35;
 uniform int hovered_tile = -1;
 uniform int selected_tile = -1;
@@ -17,6 +20,11 @@ void fragment() {
 	vec3 col = data.rgb;
 	int tile = cell.y * textureSize(tile_colors, 0).x + cell.x;
 	int biome = int(round(data.a * 255.0));
+
+	if (show_weather) {
+		vec4 weather = texelFetch(tile_weather, cell, 0);
+		col = mix(col, weather.rgb, weather.a);
+	}
 
 	// Tile outlines: thin in screen space, faded out when tiles get tiny.
 	float edge = UV.x;

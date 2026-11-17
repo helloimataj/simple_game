@@ -71,6 +71,16 @@ func _run() -> void:
 	_expect(main.tile_info.text.contains(Biomes.display_name(main.planet.biomes[main._selected])),
 		"info panel shows the tile's biome")
 
+	# Next turn advances the weather; the info panel reports it.
+	var turn_before: int = main.weather.turn
+	main.next_turn_button.pressed.emit()
+	await process_frame
+	_expect(main.weather.turn == turn_before + 1, "Next Turn advances the turn")
+	_expect(main.next_turn_button.text.contains(str(turn_before + 1)), "turn number shown on the button")
+	_expect(main.tile_info.text.contains("Weather:"), "info panel shows the tile's weather")
+	main.weather_button.button_pressed = true
+	_expect(main._material.get_shader_parameter("show_weather") == true, "Weather button turns the overlay on")
+
 	print("ALL TESTS PASSED" if failures == 0 else "%d TEST(S) FAILED" % failures)
 	quit(1 if failures > 0 else 0)
 

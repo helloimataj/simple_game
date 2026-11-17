@@ -194,7 +194,7 @@ layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -232.0
+offset_left = -352.0
 offset_top = 12.0
 offset_right = -12.0
 offset_bottom = 52.0
@@ -217,6 +217,11 @@ toggle_mode = true
 button_pressed = true
 text = "Borders"
 
+[node name="WeatherButton" type="Button" parent="UI/Hud/TopRight/Buttons"]
+layout_mode = 2
+toggle_mode = true
+text = "Weather"
+
 [node name="NewWorldButton" type="Button" parent="UI/Hud/TopRight/Buttons"]
 layout_mode = 2
 text = "New World"
@@ -233,6 +238,22 @@ theme_override_constants/margin_bottom = 8
 
 [node name="Entries" type="VBoxContainer" parent="UI/Hud/TopRight/Legend/Margin"]
 layout_mode = 2
+
+[node name="NextTurnButton" type="Button" parent="UI/Hud"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -212.0
+offset_top = -60.0
+offset_right = -12.0
+offset_bottom = -12.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 18
+text = "Next Turn"
 
 [node name="WorldInfo" type="Label" parent="UI/Hud"]
 layout_mode = 1

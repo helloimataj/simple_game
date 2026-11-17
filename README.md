@@ -4,8 +4,20 @@ A turn-based war game built with Godot 4.5, played on a hex-tiled globe.
 
 ## Running
 
-Open `project.godot` in Godot 4.5 or newer and press F5. Choose a world size
-and seed, then click **Generate World**.
+Open `project.godot` in Godot 4.5 or newer and press F5. Choose a world size,
+the number of players (2 to 20) and a seed, then click **Generate World**.
+
+## Players and starting locations
+
+Each player gets a name, a colour and a capital at a random starting location
+(`scripts/players.gd`, `scripts/world/start_locations.gd`). Starts are on
+plains or forest with mostly land around them, and are kept apart: the minimum
+spacing begins at what an even spread over the land allows and is relaxed only
+as far as needed to fit everyone, never below 4 tiles. The same seed gives the
+same starts.
+
+The game is hotseat: the **Player** selector in the bottom bar chooses who is
+acting, and turns the globe to that player's capital.
 
 ## The world
 
@@ -53,7 +65,7 @@ may occupy; this comes from each biome's movement costs, so armor is kept out
 of mountains because they are impassable to vehicles.
 
 There is no movement yet. Units are trained with the **Place** bar
-at the bottom of the screen: pick a unit type and a side, then click a tile on
+at the bottom of the screen: pick a unit type and a player, then click a tile on
 or next to that side's production building (Barracks for infantry, Factory for
 armor and artillery, Airbase for aircraft, Shipyard for naval). Hover a unit button to see
 its stats, cost and upkeep.
@@ -184,6 +196,7 @@ godot --headless --path . --script res://tests/test_planet.gd
 godot --headless --path . --script res://tests/test_units.gd
 godot --headless --path . --script res://tests/test_buildings.gd
 godot --headless --path . --script res://tests/test_combat.gd
+godot --headless --path . --script res://tests/test_players.gd
 godot --headless --path . --script res://tests/test_interaction.gd
 ```
 
@@ -193,5 +206,5 @@ Pass options after `--`, for example to generate a world straight away and save
 a screenshot:
 
 ```bash
-godot --path . -- --size=60 --seed=42 --autostart --view=20,0,18 --weather --turns=3 --screenshot=shot.png
+godot --path . -- --size=60 --seed=42 --players=8 --autostart --view=20,0,18 --weather --turns=3 --screenshot=shot.png
 ```
